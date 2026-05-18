@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
+import toast, { Toaster } from 'react-hot-toast'
 
 type Profile = { id: string; name: string | null; role: string }
 type Goal = { id: string; employee_id: string; title: string; thrust_area: string; uom_type: string; target: string; weightage: number; status: string }
@@ -29,12 +30,17 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!userLoading && !user) {
       router.push('/login')
-    } else if (profile && profile.role !== 'admin') {
-      router.push('/login') // Basic client-side protection
-    } else if (user && profile?.role === 'admin') {
-      fetchData()
+    } else if (profile) {
+      const path = window.location.pathname
+      if (profile.role === 'admin' && !path.includes('/admin')) router.push('/admin/dashboard')
+      if (profile.role === 'manager' && !path.includes('/manager')) router.push('/manager/dashboard')
+      if (profile.role === 'employee' && !path.includes('/employee')) router.push('/employee/dashboard')
+      
+      if (path.includes(profile.role)) {
+        fetchData() 
+      }
     }
-  }, [user, profile, userLoading])
+  }, [user, userLoading, profile])
 
   const fetchData = async () => {
     setLoading(true)
@@ -64,25 +70,24 @@ export default function AdminDashboard() {
     const empGoals = goals.filter(g => g.employee_id === employeeId && g.status === 'Approved')
     if (empGoals.length === 0) return
 
-    const goalIds = empGoals.map(g => g.id)
-
     const { error: updateError } = await supabase
       .from('goals')
-      .update({ status: 'Pending Approval' })
-      .in('id', goalIds)
+      .update({ status: 'Draft' })
+      .eq('employee_id', employeeId)
 
     if (updateError) {
-      setError(updateError.message)
+      toast.error(updateError.message)
       return
     }
 
     const newLogs = empGoals.map(g => ({
       goal_id: g.id,
       changed_by: user?.id,
-      change_description: 'Admin unlocked goal. Status changed from Approved to Pending Approval.',
+      change_description: 'Admin unlocked goal. Status changed from Approved back to Draft.',
     }))
 
     await supabase.from('audit_logs').insert(newLogs)
+    toast.success('Goals successfully unlocked and returned to Draft!')
     fetchData()
   }
 
@@ -127,8 +132,10 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
+      <Toaster position="top-right" />
       <div className="mx-auto max-w-7xl space-y-8">
         
+        {/* Top Bar */}
         <div className="flex items-center justify-between rounded-lg bg-white p-6 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
@@ -152,6 +159,7 @@ export default function AdminDashboard() {
 
         {error && <div className="rounded-md bg-red-50 p-4 text-red-700">{error}</div>}
 
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
           <div className="rounded-lg bg-white p-6 shadow-sm border-l-4 border-blue-500">
             <p className="text-sm font-medium text-gray-500">Total Employees</p>
@@ -171,6 +179,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Main Status Table */}
         <div className="rounded-lg bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-xl font-semibold text-gray-800">Employee Completion Status</h2>
           <div className="overflow-x-auto">
@@ -231,6 +240,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Audit Logs Table */}
         <div className="rounded-lg bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-xl font-semibold text-gray-800">Audit Logs</h2>
           {auditLogs.length === 0 ? (
@@ -263,6 +273,7 @@ export default function AdminDashboard() {
                 </table>
               </div>
               
+              {/* Pagination Controls */}
               <div className="mt-4 flex items-center justify-between">
                 <span className="text-sm text-gray-500">
                   Page {auditPage} of {totalPages}

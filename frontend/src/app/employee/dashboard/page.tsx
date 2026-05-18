@@ -36,10 +36,20 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     if (!userLoading && !user) {
       router.push('/login')
-    } else if (user) {
-      fetchGoals()
+    } else if (profile) {
+      // Force users into their correct role dashboards if they wander off
+      const path = window.location.pathname
+      if (profile.role === 'admin' && !path.includes('/admin')) router.push('/admin/dashboard')
+      if (profile.role === 'manager' && !path.includes('/manager')) router.push('/manager/dashboard')
+      if (profile.role === 'employee' && !path.includes('/employee')) router.push('/employee/dashboard')
+      
+      // Only fetch data if they are on the correct page
+      if (path.includes(profile.role)) {
+         // Replace 'fetchGoals' with whatever your fetch function is named in that specific file!
+        fetchGoals() 
+      }
     }
-  }, [user, userLoading])
+      }, [user, userLoading, profile])
 
   const fetchGoals = async () => {
     setLoading(true)
